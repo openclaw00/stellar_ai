@@ -51,6 +51,8 @@ async function handleQuery({ query, pageContent, screenshot }) {
     const match = raw.match(/\[CONFIDENCE:([\d.]+)\]/);
     const confidence = match ? Math.min(1, Math.max(0, parseFloat(match[1]))) : 0.8;
     const text = raw.replace(/\[CONFIDENCE:[\d.]+\]\s*$/, '').trim();
+    const { totalRequests = 0 } = await chrome.storage.local.get('totalRequests');
+    await chrome.storage.local.set({ totalRequests: totalRequests + 1, lastUsed: Date.now() });
     return { text, confidence };
   } catch (err) {
     return { error: err.message };
