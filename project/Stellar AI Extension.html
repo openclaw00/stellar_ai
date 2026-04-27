@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stellar AI — Browser Extension</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --orange: oklch(0.65 0.18 40);
+    --orange-soft: oklch(0.78 0.12 40);
+    --orange-glow: oklch(0.65 0.18 40 / 0.18);
+    --orange-border: oklch(0.65 0.18 40 / 0.35);
+    --glass-bg: oklch(1 0 0 / 0.55);
+    --glass-border: oklch(1 0 0 / 0.7);
+    --glass-blur: blur(24px) saturate(1.8);
+    --shadow-soft: 0 8px 40px oklch(0.4 0.05 40 / 0.12), 0 2px 8px oklch(0.4 0.05 40 / 0.08);
+    --shadow-orange: 0 0 0 1px var(--orange-border), 0 8px 40px var(--orange-glow);
+    --text-primary: oklch(0.18 0.02 40);
+    --text-secondary: oklch(0.45 0.04 40);
+    --text-tertiary: oklch(0.62 0.03 40);
+    --font: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    font-family: var(--font);
+    background: oklch(0.97 0.008 60);
+    overflow: hidden;
+  }
+
+  /* Fake webpage background */
+  .fake-page {
+    position: fixed; inset: 0;
+    background: oklch(0.97 0.008 60);
+    overflow: hidden;
+  }
+
+  .fake-page-inner {
+    padding: 60px 80px;
+    max-width: 900px;
+    margin: 0 auto;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .fake-nav {
+    display: flex; align-items: center; gap: 24px;
+    padding: 0 80px;
+    height: 52px;
+    background: oklch(1 0 0 / 0.8);
+    border-bottom: 1px solid oklch(0.9 0.005 60);
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 1;
+    backdrop-filter: blur(12px);
+  }
+
+  .nav-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .nav-url {
+    flex: 1; height: 28px; background: oklch(0.94 0.005 60);
+    border-radius: 6px; max-width: 480px;
+    display: flex; align-items: center; padding: 0 12px;
+    font-size: 12px; color: var(--text-tertiary);
+    font-family: var(--font);
+  }
+
+  .fake-content {
+    margin-top: 72px;
+    padding: 48px 80px;
+  }
+
+  .fc-tag {
+    display: inline-block;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    color: var(--orange); text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .fc-h1 {
+    font-size: 38px; font-weight: 700; line-height: 1.2;
+    color: var(--text-primary); margin-bottom: 20px;
+    max-width: 600px;
+  }
+
+  .fc-p {
+    font-size: 16px; line-height: 1.75; color: var(--text-secondary);
+    max-width: 560px; margin-bottom: 16px;
+  }
+
+  .fc-img {
+    width: 100%; height: 220px;
+    background: repeating-linear-gradient(
+      45deg,
+      oklch(0.92 0.008 60) 0px,
+      oklch(0.92 0.008 60) 10px,
+      oklch(0.95 0.005 60) 10px,
+      oklch(0.95 0.005 60) 20px
+    );
+    border-radius: 12px; margin: 28px 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-family: monospace; color: var(--text-tertiary);
+    letter-spacing: 0.04em;
+  }
+
+  /* Extension overlay */
+  #ext-root {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  #ext-root > * { pointer-events: auto; }
+</style>
+</head>
+<body>
+
+<!-- Simulated webpage -->
+<div class="fake-page">
+  <div class="fake-nav">
+    <div style="display:flex;gap:6px">
+      <div class="nav-dot" style="background:oklch(0.7 0.15 25)"></div>
+      <div class="nav-dot" style="background:oklch(0.75 0.12 85)"></div>
+      <div class="nav-dot" style="background:oklch(0.65 0.15 145)"></div>
+    </div>
+    <div class="nav-url">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="margin-right:6px;opacity:0.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      vercel.com/blog/ai-infrastructure-for-the-modern-web
+    </div>
+  </div>
+  <div class="fake-content">
+    <span class="fc-tag">Engineering</span>
+    <h1 class="fc-h1">AI Infrastructure for the Modern Web</h1>
+    <p class="fc-p">As AI models grow more capable, the infrastructure layer becomes the competitive moat. Teams that build on flexible, scalable primitives will ship faster and iterate more confidently than those locked into monolithic solutions.</p>
+    <div class="fc-img">article hero image</div>
+    <p class="fc-p">The shift from batch inference to real-time streaming changed everything. Users expect sub-second responses, contextual awareness, and seamless handoffs between model generations without re-prompting.</p>
+    <p class="fc-p">Edge deployment closes the latency gap for global audiences. When inference runs close to the user, the interaction feels native—not like a network call. This is the baseline expectation for 2026.</p>
+  </div>
+</div>
+
+<!-- Extension UI (React) -->
+<div id="ext-root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accentHue": 22,
+  "tubePosition": "top-right",
+  "answerWidth": 520,
+  "glassOpacity": 0.75,
+  "showScreenHint": true
+}/*EDITMODE-END*/;
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+const IconMic = ({size=16, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <rect x="9" y="2" width="6" height="12" rx="3" stroke={color} strokeWidth="1.8"/>
+    <path d="M5 10a7 7 0 0014 0" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="12" y1="20" x2="12" y2="17" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="9" y1="22" x2="15" y2="22" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconScreen = ({size=16, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <rect x="2" y="4" width="20" height="14" rx="2" stroke={color} strokeWidth="1.8"/>
+    <path d="M8 22h8M12 18v4" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconSend = ({size=14, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const IconCards = ({size=16, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <rect x="2" y="6" width="20" height="14" rx="3" stroke={color} strokeWidth="1.8"/>
+    <path d="M6 6V5a2 2 0 012-2h8a2 2 0 012 2v1" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="7" y1="11" x2="17" y2="11" stroke={color} strokeWidth="1.6" strokeLinecap="round"/>
+    <line x1="7" y1="15" x2="13" y2="15" stroke={color} strokeWidth="1.6" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconX = ({size=14, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <path d="M18 6L6 18M6 6l12 12" stroke={color} strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconStar = ({size=16, color="currentColor"}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+  </svg>
+);
+
+// ─── Typewriter effect ────────────────────────────────────────────────────────
+function useTypewriter(text, speed = 18, active = false) {
+  const [displayed, setDisplayed] = React.useState('');
+  const [done, setDone] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!active) { setDisplayed(''); setDone(false); return; }
+    setDisplayed(''); setDone(false);
+    let i = 0;
+    const interval = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) { clearInterval(interval); setDone(true); }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, active]);
+
+  return { displayed, done };
+}
+
+// ─── Flashcards ──────────────────────────────────────────────────────────────
+const FLASHCARDS = [
+  { q: "What is the main argument of this article?", a: "That AI infrastructure flexibility is a competitive moat — teams using composable primitives ship faster and iterate more confidently." },
+  { q: "Why did the shift from batch to streaming inference matter?", a: "Users now expect sub-second responses and contextual awareness. Batch inference introduces too much latency for real-time interactions." },
+  { q: "What is edge deployment and why does it help?", a: "Running inference on CDN nodes close to the user, rather than a central server. Cuts round-trip latency from ~300ms to under 50ms globally." },
+  { q: "What is the baseline expectation for AI apps in 2026?", a: "Real-time streaming inference at the edge. Anything slower feels like a network call, not a native experience." },
+  { q: "What advantage do teams with flexible infra have?", a: "They can swap model generations without re-prompting users and iterate faster than teams locked into monolithic solutions." },
+];
+
+// ─── Responses ────────────────────────────────────────────────────────────────
+const RESPONSES = {
+  default:             { text: "This article covers AI infrastructure trends for 2026—specifically how edge deployment reduces latency and why streaming inference has become the new baseline expectation for real-time web applications.", confidence: 0.82 },
+  "summarize":         { text: "**Summary:** The article argues that flexible AI infrastructure is a competitive advantage. Key points: (1) streaming > batch inference for UX, (2) edge deployment cuts global latency, (3) teams using composable primitives ship faster.", confidence: 0.95 },
+  "what is this page": { text: "This is a Vercel engineering blog post about AI infrastructure. It covers the shift to real-time streaming inference, edge deployment for low latency, and why infrastructure flexibility is a competitive moat for AI-powered teams.", confidence: 0.97 },
+  "explain more":      { text: "Edge inference means running model weights physically close to the end user — on CDN nodes rather than a central data center. This cuts round-trip latency from ~300ms to under 50ms for most global users, making AI feel instant.", confidence: 0.71 },
+  "explain":           { text: "The author argues that how you deploy AI matters as much as which model you use. Real-time streaming and running inference at the edge are the two big architectural shifts described.", confidence: 0.88 },
+  "tldr":              { text: "AI infra = competitive moat. Stream instead of batch. Run at the edge. Use flexible primitives. Ship faster.", confidence: 0.93 },
+  "key takeaways":     { text: "1. Infrastructure flexibility is a moat\n2. Streaming inference is now the baseline UX expectation\n3. Edge deployment is table stakes for global products\n4. Teams on composable primitives ship faster", confidence: 0.91 },
+};
+
+function getResponse(query) {
+  const q = query.toLowerCase().trim();
+  for (const key of Object.keys(RESPONSES)) {
+    if (key !== 'default' && q.includes(key)) return RESPONSES[key];
+  }
+  return RESPONSES.default;
+}
+
+// ─── Main Extension Component ─────────────────────────────────────────────────
+function StellarExtension({ tweaks }) {
+  const { accentHue, tubePosition, answerWidth, glassOpacity, showScreenHint } = tweaks;
+
+  const orange = `oklch(0.65 0.18 ${accentHue})`;
+  const orangeGlow = `oklch(0.65 0.18 ${accentHue} / 0.2)`;
+  const orangeBorder = `oklch(0.65 0.18 ${accentHue} / 0.4)`;
+  const glassBg = `oklch(1 0 0 / ${glassOpacity})`;
+
+  const [query, setQuery] = React.useState('');
+  const [state, setState] = React.useState('idle'); // idle | listening | thinking | answer
+  const [answerText, setAnswerText] = React.useState('');
+  const [confidence, setConfidence] = React.useState(null);
+  const [micActive, setMicActive] = React.useState(false);
+  const [flashMode, setFlashMode] = React.useState(false); // flashcard panel open
+  const [generatingCards, setGeneratingCards] = React.useState(false);
+  const [cardIndex, setCardIndex] = React.useState(0);
+  const [flipped, setFlipped] = React.useState(false);
+  const [revealedCards, setRevealedCards] = React.useState(0);
+  const inputRef = React.useRef(null);
+
+  const { displayed, done: typeDone } = useTypewriter(answerText, 14, state === 'answer');
+
+  const submit = (q = query) => {
+    const text = q.trim();
+    if (!text) return;
+    setState('thinking');
+    setAnswerText('');
+    setConfidence(null);
+    setTimeout(() => {
+      const resp = getResponse(text);
+      setAnswerText(resp.text);
+      setConfidence(resp.confidence);
+      setState('answer');
+    }, 1100);
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Enter') submit();
+  };
+
+  const handleMic = () => {
+    setMicActive(true);
+    setState('listening');
+    setTimeout(() => {
+      setMicActive(false);
+      setQuery('Summarize this page for me');
+      setState('thinking');
+      setTimeout(() => {
+        const sresp = getResponse('summarize');
+        setAnswerText(sresp.text);
+        setConfidence(sresp.confidence);
+        setState('answer');
+      }, 1200);
+    }, 2000);
+  };
+
+  const dismiss = () => {
+    setState('idle');
+    setQuery('');
+    setAnswerText('');
+    setConfidence(null);
+  };
+
+  const openFlashcards = () => {
+    setFlashMode(true);
+    setGeneratingCards(true);
+    setCardIndex(0);
+    setFlipped(false);
+    setRevealedCards(0);
+    let count = 0;
+    const interval = setInterval(() => {
+      count++;
+      setRevealedCards(count);
+      if (count >= FLASHCARDS.length) {
+        clearInterval(interval);
+        setGeneratingCards(false);
+      }
+    }, 320);
+  };
+
+  const closeFlashcards = () => {
+    setFlashMode(false);
+    setCardIndex(0);
+    setFlipped(false);
+    setRevealedCards(0);
+  };
+
+  // Glass style helper
+  const glass = (extra = {}) => ({
+    background: glassBg,
+    backdropFilter: 'blur(28px) saturate(1.9)',
+    WebkitBackdropFilter: 'blur(28px) saturate(1.9)',
+    border: `1px solid oklch(1 0 0 / 0.75)`,
+    boxShadow: `0 8px 48px oklch(0.3 0.04 40 / 0.1), 0 2px 8px oklch(0.3 0.04 40 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.9)`,
+    ...extra,
+  });
+
+  // Tube position
+  const tubeStyle = {
+    position: 'fixed',
+    top: 68,
+    right: tubePosition === 'top-right' ? 20 : undefined,
+    left: tubePosition === 'top-left' ? 20 : undefined,
+    zIndex: 9999,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 10px 8px 16px',
+    borderRadius: 20,
+    width: 380,
+    transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
+    ...(state === 'listening'
+      ? { ...glass(), boxShadow: `0 0 0 2px ${orangeBorder}, 0 8px 40px ${orangeGlow}`, border: `1.5px solid ${orangeBorder}` }
+      : glass()),
+  };
+
+  // Render answer text with basic bold markdown
+  const renderAnswer = (text) => {
+    return text.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <strong key={i} style={{fontWeight: 600, color: 'oklch(0.18 0.02 40)'}}>{part.slice(2,-2)}</strong>
+        : <span key={i}>{part}</span>
+    );
+  };
+
+  return (
+    <>
+      {/* ── Flashcard Panel ── */}
+      {flashMode && (
+        <div style={{
+          position: 'fixed', top: 68,
+          left: tubePosition === 'top-right' ? 20 : undefined,
+          right: tubePosition === 'top-left' ? 20 : undefined,
+          zIndex: 9998, width: 400,
+          borderRadius: 20, overflow: 'hidden',
+          ...glass(),
+        }}>
+          {/* Header */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 16px 12px', borderBottom:'1px solid oklch(0 0 0 / 0.06)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:24, height:24, borderRadius:8, background:`linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 2px 8px ${orangeGlow}` }}>
+                <IconCards size={12} color="white"/>
+              </div>
+              <span style={{ fontSize:12, fontWeight:600, color:'oklch(0.18 0.02 40)', letterSpacing:'-0.01em' }}>Flashcards</span>
+              <span style={{ fontSize:10, fontWeight:500, color:'oklch(0.55 0.03 40)' }}>{FLASHCARDS.length} cards from this page</span>
+            </div>
+            <button onClick={closeFlashcards} style={{ width:24, height:24, borderRadius:8, border:'none', background:'oklch(0 0 0 / 0.05)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'oklch(0.5 0.02 40)' }}
+              onMouseEnter={e => e.currentTarget.style.background='oklch(0 0 0 / 0.1)'}
+              onMouseLeave={e => e.currentTarget.style.background='oklch(0 0 0 / 0.05)'}>
+              <IconX size={12}/>
+            </button>
+          </div>
+
+          {/* Progress dots */}
+          <div style={{ display:'flex', gap:5, justifyContent:'center', padding:'12px 16px 4px' }}>
+            {FLASHCARDS.map((_, i) => (
+              <div key={i} onClick={() => { setCardIndex(i); setFlipped(false); }} style={{
+                width: i === cardIndex ? 18 : 7, height:7, borderRadius:99,
+                background: i < revealedCards
+                  ? i === cardIndex ? orange : `oklch(0.65 0.18 ${accentHue} / 0.35)`
+                  : 'oklch(0 0 0 / 0.08)',
+                transition:'all 0.3s ease', cursor: i < revealedCards ? 'pointer' : 'default',
+              }}/>
+            ))}
+          </div>
+
+          {/* Card flip area */}
+          <div style={{ padding:'12px 16px 16px', perspective:800 }}>
+            <div onClick={() => !generatingCards && cardIndex < revealedCards && setFlipped(f => !f)}
+              style={{
+                position:'relative', height:160,
+                transformStyle:'preserve-3d',
+                transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                transition:'transform 0.5s cubic-bezier(0.16,1,0.3,1)',
+                cursor: cardIndex < revealedCards ? 'pointer' : 'default',
+              }}>
+              {/* Front */}
+              <div style={{
+                position:'absolute', inset:0, borderRadius:14,
+                background: `oklch(0.65 0.18 ${accentHue} / 0.06)`,
+                border:`1.5px solid ${orangeBorder}`,
+                backfaceVisibility:'hidden', WebkitBackfaceVisibility:'hidden',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                padding:20, textAlign:'center', gap:10,
+              }}>
+                {cardIndex < revealedCards ? (
+                  <>
+                    <span style={{ fontSize:10, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:orange, opacity:0.7 }}>Question</span>
+                    <p style={{ fontSize:14, lineHeight:1.55, fontWeight:500, color:'oklch(0.18 0.02 40)' }}>{FLASHCARDS[cardIndex].q}</p>
+                    <span style={{ fontSize:10.5, color:'oklch(0.6 0.03 40)' }}>tap to flip</span>
+                  </>
+                ) : (
+                  <div style={{ display:'flex', gap:5 }}>
+                    {[0,1,2].map(i => <div key={i} style={{ width:7, height:7, borderRadius:'50%', background:orange, animation:`pulse 1.2s ease-in-out ${i*0.2}s infinite` }}/>)}
+                  </div>
+                )}
+              </div>
+              {/* Back */}
+              <div style={{
+                position:'absolute', inset:0, borderRadius:14,
+                background:`oklch(1 0 0 / 0.7)`,
+                border:`1.5px solid oklch(1 0 0 / 0.8)`,
+                backfaceVisibility:'hidden', WebkitBackfaceVisibility:'hidden',
+                transform:'rotateY(180deg)',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+                padding:20, textAlign:'center', gap:10,
+              }}>
+                <span style={{ fontSize:10, fontWeight:600, letterSpacing:'0.08em', textTransform:'uppercase', color:'#2d9e5f', opacity:0.8 }}>Answer</span>
+                <p style={{ fontSize:13.5, lineHeight:1.6, color:'oklch(0.2 0.02 40)' }}>{FLASHCARDS[cardIndex].a}</p>
+              </div>
+            </div>
+
+            {/* Prev / Next */}
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:12, gap:8 }}>
+              <button onClick={() => { setCardIndex(i => Math.max(0, i-1)); setFlipped(false); }}
+                disabled={cardIndex === 0}
+                style={{ flex:1, height:34, borderRadius:10, border:`1px solid oklch(0 0 0 / 0.1)`, background:'oklch(0 0 0 / 0.04)', cursor: cardIndex === 0 ? 'default' : 'pointer', fontSize:12, fontWeight:600, color:'oklch(0.35 0.02 40)', opacity: cardIndex === 0 ? 0.35 : 1, fontFamily:'var(--font)', transition:'all 0.15s' }}
+                onMouseEnter={e => { if(cardIndex>0) e.currentTarget.style.background='oklch(0 0 0 / 0.08)'; }}
+                onMouseLeave={e => e.currentTarget.style.background='oklch(0 0 0 / 0.04)'}>
+                ← Prev
+              </button>
+              <button onClick={() => { setCardIndex(i => Math.min(revealedCards-1, i+1)); setFlipped(false); }}
+                disabled={cardIndex >= revealedCards - 1}
+                style={{ flex:1, height:34, borderRadius:10, border:'none', background: cardIndex < revealedCards-1 ? `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))` : 'oklch(0 0 0 / 0.06)', cursor: cardIndex < revealedCards-1 ? 'pointer' : 'default', fontSize:12, fontWeight:600, color: cardIndex < revealedCards-1 ? 'white' : 'oklch(0.6 0.02 40)', fontFamily:'var(--font)', transition:'all 0.15s', boxShadow: cardIndex < revealedCards-1 ? `0 4px 12px ${orangeGlow}` : 'none' }}>
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Answer Panel (top-left) ── */}
+      <div style={{
+        position: 'fixed', top: 68, left: 20, zIndex: 9998,
+        width: answerWidth,
+        opacity: state === 'answer' || state === 'thinking' ? 1 : 0,
+        transform: state === 'answer' || state === 'thinking'
+          ? 'translateY(0) scale(1)'
+          : 'translateY(-10px) scale(0.97)',
+        transition: 'opacity 0.35s cubic-bezier(0.16,1,0.3,1), transform 0.35s cubic-bezier(0.16,1,0.3,1)',
+        pointerEvents: state === 'answer' ? 'auto' : 'none',
+        borderRadius: 20,
+        overflow: 'hidden',
+        ...glass(),
+      }}>
+        {/* Confidence bar */}
+        {(state === 'answer' || state === 'thinking') && (
+          <div style={{ background: 'oklch(0 0 0 / 0.05)', padding: '10px 16px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'oklch(0.55 0.03 40)' }}>
+                Confidence
+              </span>
+              {state === 'answer' && confidence !== null && (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 700,
+                  color: confidence >= 0.85 ? '#2d9e5f' : confidence >= 0.7 ? '#d97706' : '#dc2626',
+                }}>
+                  {Math.round(confidence * 100)}%
+                </span>
+              )}
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: 'oklch(0 0 0 / 0.08)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: state === 'answer' && confidence !== null ? `${confidence * 100}%` : '0%',
+                borderRadius: 99,
+                background: state === 'answer' && confidence !== null
+                  ? confidence >= 0.85
+                    ? 'linear-gradient(90deg, #4ade80, #16a34a)'
+                    : confidence >= 0.7
+                    ? 'linear-gradient(90deg, #fbbf24, #d97706)'
+                    : 'linear-gradient(90deg, #f87171, #dc2626)'
+                  : 'transparent',
+                transition: 'width 1s cubic-bezier(0.16,1,0.3,1)',
+                boxShadow: state === 'answer' && confidence !== null
+                  ? confidence >= 0.85 ? '0 0 8px #4ade8088' : confidence >= 0.7 ? '0 0 8px #fbbf2488' : '0 0 8px #f8717188'
+                  : 'none',
+              }}/>
+            </div>
+          </div>
+        )}
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 16px 10px',
+          borderBottom: '1px solid oklch(0 0 0 / 0.06)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: 8,
+              background: `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 2px 8px ${orangeGlow}`,
+            }}>
+              <IconStar size={11} color="white"/>
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'oklch(0.18 0.02 40)', letterSpacing: '-0.01em' }}>
+              Stellar AI
+            </span>
+            {showScreenHint && (
+              <span style={{
+                fontSize: 10, fontWeight: 500, color: orange,
+                background: `oklch(0.65 0.18 ${accentHue} / 0.1)`,
+                padding: '2px 7px', borderRadius: 99, letterSpacing: '0.02em',
+              }}>
+                Viewing your screen
+              </span>
+            )}
+          </div>
+          <button onClick={dismiss} style={{
+            width: 24, height: 24, borderRadius: 8, border: 'none',
+            background: 'oklch(0 0 0 / 0.05)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'oklch(0.5 0.02 40)', transition: 'background 0.15s',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'oklch(0 0 0 / 0.1)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'oklch(0 0 0 / 0.05)'}
+          >
+            <IconX size={12}/>
+          </button>
+        </div>
+
+        {/* Query echo */}
+        {query && (
+          <div style={{ padding: '12px 16px 0', fontSize: 12, color: 'oklch(0.55 0.04 40)', fontStyle: 'italic' }}>
+            "{query}"
+          </div>
+        )}
+
+        {/* Body */}
+        <div style={{ padding: '12px 16px 16px', minHeight: 80 }}>
+          {state === 'thinking' ? (
+            <div style={{ display: 'flex', gap: 5, alignItems: 'center', paddingTop: 4 }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: orange,
+                  animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                }}/>
+              ))}
+            </div>
+          ) : (
+            <p style={{
+              fontSize: 13.5, lineHeight: 1.7, color: 'oklch(0.25 0.02 40)',
+              fontWeight: 400,
+            }}>
+              {renderAnswer(displayed)}
+              {!typeDone && state === 'answer' && (
+                <span style={{
+                  display: 'inline-block', width: 2, height: 14,
+                  background: orange, marginLeft: 2,
+                  animation: 'blink 0.8s step-end infinite',
+                  verticalAlign: 'middle',
+                }}/>
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Suggested follow-ups */}
+        {typeDone && state === 'answer' && (
+          <div style={{
+            padding: '0 16px 14px',
+            display: 'flex', gap: 6, flexWrap: 'wrap',
+            borderTop: '1px solid oklch(0 0 0 / 0.05)', paddingTop: 10,
+          }}>
+            {['Explain more', 'TL;DR', 'Key takeaways'].map(s => (
+              <button key={s} onClick={() => { setQuery(s); submit(s); }} style={{
+                fontSize: 11.5, fontWeight: 500,
+                padding: '5px 11px', borderRadius: 99,
+                border: `1px solid ${orangeBorder}`,
+                background: `oklch(0.65 0.18 ${accentHue} / 0.07)`,
+                color: orange, cursor: 'pointer', fontFamily: 'var(--font)',
+                transition: 'background 0.15s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = `oklch(0.65 0.18 ${accentHue} / 0.15)`}
+                onMouseLeave={e => e.currentTarget.style.background = `oklch(0.65 0.18 ${accentHue} / 0.07)`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Tube (top-right) ── */}
+      <div style={tubeStyle}>
+        {/* Logo dot */}
+        <div style={{
+          width: 28, height: 28, borderRadius: 10, flexShrink: 0,
+          background: `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: `0 2px 10px ${orangeGlow}`,
+        }}>
+          <IconStar size={12} color="white"/>
+        </div>
+
+        {/* Input */}
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder={
+            state === 'listening' ? 'Listening…' :
+            state === 'thinking' ? 'Thinking…' :
+            'Ask anything about this page…'
+          }
+          disabled={state === 'listening' || state === 'thinking'}
+          style={{
+            flex: 1,
+            background: 'transparent', border: 'none', outline: 'none',
+            fontSize: 13, fontWeight: 400, fontFamily: 'var(--font)',
+            color: state === 'listening' || state === 'thinking'
+              ? orange
+              : 'oklch(0.18 0.02 40)',
+            letterSpacing: '-0.01em',
+          }}
+        />
+
+        {/* Screen context pill */}
+        {showScreenHint && state === 'idle' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '4px 9px', borderRadius: 99,
+            background: `oklch(0.65 0.18 ${accentHue} / 0.08)`,
+            border: `1px solid ${orangeBorder}`,
+            flexShrink: 0,
+          }}>
+            <IconScreen size={11} color={orange}/>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: orange, whiteSpace: 'nowrap' }}>
+              Screen
+            </span>
+          </div>
+        )}
+
+        {/* Flashcard button */}
+        <button onClick={openFlashcards} title="Create flashcards" style={{
+          width: 34, height: 34, borderRadius: 10, border: 'none',
+          background: flashMode
+            ? `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`
+            : 'oklch(0 0 0 / 0.05)',
+          color: flashMode ? 'white' : 'oklch(0.45 0.04 40)',
+          cursor: 'pointer', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s ease',
+          boxShadow: flashMode ? `0 4px 16px ${orangeGlow}` : 'none',
+        }}
+          onMouseEnter={e => { if (!flashMode) e.currentTarget.style.background = 'oklch(0 0 0 / 0.1)'; }}
+          onMouseLeave={e => { if (!flashMode) e.currentTarget.style.background = 'oklch(0 0 0 / 0.05)'; }}
+        >
+          <IconCards size={14} color={flashMode ? 'white' : 'oklch(0.45 0.04 40)'}/>
+        </button>
+
+        {/* Mic button */}
+        <button onClick={handleMic} disabled={state === 'thinking'} style={{
+          width: 34, height: 34, borderRadius: 10, border: 'none',
+          background: micActive
+            ? `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`
+            : 'oklch(0 0 0 / 0.05)',
+          color: micActive ? 'white' : 'oklch(0.45 0.04 40)',
+          cursor: 'pointer', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s ease',
+          boxShadow: micActive ? `0 4px 16px ${orangeGlow}` : 'none',
+        }}
+          onMouseEnter={e => { if (!micActive) e.currentTarget.style.background = 'oklch(0 0 0 / 0.1)'; }}
+          onMouseLeave={e => { if (!micActive) e.currentTarget.style.background = 'oklch(0 0 0 / 0.05)'; }}
+        >
+          <IconMic size={14} color={micActive ? 'white' : 'oklch(0.45 0.04 40)'}/>
+        </button>
+
+        {/* Send button */}
+        <button onClick={() => submit()} disabled={!query.trim() || state === 'thinking'} style={{
+          width: 34, height: 34, borderRadius: 10, border: 'none',
+          background: query.trim()
+            ? `linear-gradient(135deg, ${orange}, oklch(0.72 0.15 55))`
+            : 'oklch(0 0 0 / 0.05)',
+          color: query.trim() ? 'white' : 'oklch(0.65 0.02 40)',
+          cursor: query.trim() ? 'pointer' : 'default', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.2s ease',
+          boxShadow: query.trim() ? `0 4px 16px ${orangeGlow}` : 'none',
+        }}>
+          <IconSend size={13} color={query.trim() ? 'white' : 'oklch(0.65 0.02 40)'}/>
+        </button>
+      </div>
+
+      {/* Listening ring animation around tube */}
+      {state === 'listening' && (
+        <div style={{
+          position: 'fixed', top: 68, right: 20,
+          width: 380, height: 50,
+          borderRadius: 999,
+          border: `2px solid ${orange}`,
+          animation: 'ring 1.5s ease-out infinite',
+          pointerEvents: 'none', zIndex: 9997,
+        }}/>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+        @keyframes blink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
+        }
+        @keyframes ring {
+          0% { opacity: 0.9; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.06) translateX(-1px); }
+        }
+        input::placeholder { color: oklch(0.62 0.03 40); }
+      `}</style>
+    </>
+  );
+}
+
+// ─── App with Tweaks ──────────────────────────────────────────────────────────
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  return (
+    <>
+      <StellarExtension tweaks={t}/>
+      <TweaksPanel>
+        <TweakSection label="Accent Color"/>
+        <TweakSlider label="Hue" value={t.accentHue} min={10} max={80} step={1}
+          onChange={v => setTweak('accentHue', v)}/>
+        <TweakSection label="Layout"/>
+        <TweakRadio label="Tube position" value={t.tubePosition}
+          options={['top-right','top-left']}
+          onChange={v => setTweak('tubePosition', v)}/>
+        <TweakSlider label="Answer panel width" value={t.answerWidth} min={280} max={520} step={10}
+          onChange={v => setTweak('answerWidth', v)}/>
+        <TweakSection label="Glass"/>
+        <TweakSlider label="Opacity" value={t.glassOpacity} min={0.3} max={0.85} step={0.05}
+          onChange={v => setTweak('glassOpacity', v)}/>
+        <TweakSection label="Features"/>
+        <TweakToggle label="Show screen context badge" value={t.showScreenHint}
+          onChange={v => setTweak('showScreenHint', v)}/>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('ext-root')).render(<App/>);
+</script>
+</body>
+</html>
