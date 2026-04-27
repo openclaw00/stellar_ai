@@ -277,7 +277,7 @@ export default function StellarApp() {
 
       {/* Flashcard Panel — top-left */}
       {flashMode && (
-        <div style={{ position: 'fixed', top: 16, left: 20, zIndex: 9998, width: 400, borderRadius: 20, overflow: 'hidden', fontFamily: FONT, ...GLASS }}>
+        <div style={{ position: 'fixed', top: 16, left: 20, zIndex: 9998, width: 400, borderRadius: 20, overflow: 'hidden', fontFamily: FONT, pointerEvents: 'auto', ...GLASS }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px 12px', borderBottom: '1px solid oklch(0 0 0 / 0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{ width: 24, height: 24, borderRadius: 8, background: `linear-gradient(135deg, ${O}, oklch(0.72 0.15 55))`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 2px 8px ${OG}` }}>
@@ -402,6 +402,7 @@ export default function StellarApp() {
       {/* Tube — top-right */}
       <div style={{
         position: 'fixed', top: 16, right: 20, zIndex: 9999,
+        pointerEvents: 'auto',
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 10px 8px 14px', borderRadius: 20, width: 380,
         fontFamily: FONT, transition: 'box-shadow 0.3s ease, border-color 0.3s ease',
