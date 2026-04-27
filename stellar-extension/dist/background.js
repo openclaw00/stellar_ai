@@ -25,7 +25,7 @@ async function callOpenAI(apiKey, messages, opts = {}) {
   return data.choices[0].message.content;
 }
 
-async function handleQuery({ query, pageContent, screenshot }) {
+async function handleQuery({ query, pageContent, screenshot, images = [], pageImages = [] }) {
   const apiKey = await getApiKey();
   if (!apiKey) return { error: 'No API key set — click the Stellar AI icon to add one.' };
 
@@ -33,19 +33,18 @@ async function handleQuery({ query, pageContent, screenshot }) {
     role: 'system',
     content:
       'You are Stellar AI, a concise browser-assistant. Answer in 1–4 sentences unless more detail is needed. ' +
+      'Use provided page visuals and screenshots as primary visual evidence when relevant. ' +
       'You can use markdown images ![alt](url) to show photos if relevant. ' +
       'End every response with exactly one line: [CONFIDENCE:X.XX] where X.XX is your confidence from 0 to 1.',
   };
 
-  let userContent;
-  if (screenshot) {
-    userContent = [
-      { type: 'text', text: `Page: ${pageContent}\n\nQuestion: ${query}` },
-      { type: 'image_url', image_url: { url: screenshot, detail: 'low' } },
-    ];
-  } else {
-    userContent = `Page content:\n${pageContent}\n\nQuestion: ${query}`;
-  }
+  const validImages = [screenshot, ...pageImages, ...images].filter(Boolean).slice(0, 8);
+  const userContent = validImages.length
+    ? [
+        { type: 'text', text: `Page: ${pageContent}\n\nQuestion: ${query}` },
+        ...validImages.map(url => ({ type: 'image_url', image_url: { url, detail: 'low' } })),
+      ]
+    : `Page content:\n${pageContent}\n\nQuestion: ${query}`;
 
   try {
     const raw = await callOpenAI(apiKey, [systemMsg, { role: 'user', content: userContent }]);

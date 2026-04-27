@@ -48,6 +48,13 @@ const IconCards = ({ s = 16, c = 'currentColor' }) => (
     <line x1="7" y1="15" x2="13" y2="15" stroke={c} strokeWidth="1.6" strokeLinecap="round" />
   </svg>
 );
+const IconImage = ({ s = 16, c = 'currentColor' }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+    <rect x="3" y="4" width="18" height="16" rx="2.5" stroke={c} strokeWidth="1.8" />
+    <circle cx="9" cy="10" r="1.5" fill={c} />
+    <path d="M5.5 17l4.3-4.3a1.2 1.2 0 011.7 0l2.1 2.1a1.2 1.2 0 001.7 0l2.7-2.7" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 const IconX = ({ s = 14, c = 'currentColor' }) => (
   <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
     <path d="M18 6L6 18M6 6l12 12" stroke={c} strokeWidth="2" strokeLinecap="round" />
@@ -83,6 +90,27 @@ function getPageContent() {
     .map(img => `Image: ${img.alt || 'No alt text'} - URL: ${img.src}`)
     .join('\n');
   return `Title: ${document.title}\nURL: ${location.href}\nImages on page:\n${imgs}\n\nText content:\n${document.body.innerText.slice(0, 4000)}`;
+}
+
+function getPageImageUrls() {
+  const seen = new Set();
+  return Array.from(document.querySelectorAll('img'))
+    .map(img => img.currentSrc || img.src)
+    .filter(Boolean)
+    .filter(url => /^https?:\/\//i.test(url))
+    .filter(url => {
+      if (seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    })
+    .slice(0, 6);
+}
+
+function getDocLinks() {
+  return Array.from(document.querySelectorAll('a'))
+    .filter(a => a.href && (a.href.toLowerCase().endsWith('.xlsx') || a.href.toLowerCase().endsWith('.csv')))
+    .slice(0, 2)
+    .map(a => a.href);
 }
 
 function renderMd(text) {
@@ -187,7 +215,9 @@ export default function StellarApp() {
   const [cardIndex, setCardIndex] = React.useState(0);
   const [flipped, setFlipped] = React.useState(false);
   const [revealedCards, setRevealedCards] = React.useState(0);
+  const [attachedImages, setAttachedImages] = React.useState([]);
   const inputRef = React.useRef(null);
+  const fileInputRef = React.useRef(null);
 
   const { displayed, done: typeDone } = useTypewriter(answerText, 14, state === 'answer');
 
@@ -200,6 +230,8 @@ export default function StellarApp() {
     setErrorText('');
 
     const pageContent = getPageContent();
+    const pageImages = getPageImageUrls();
+    const docLinks = getDocLinks();
     let screenshot = null;
 
     try {
@@ -208,7 +240,15 @@ export default function StellarApp() {
     } catch { /* capture is optional */ }
 
     try {
-      const res = await chrome.runtime.sendMessage({ type: 'QUERY_OPENAI', query: text, pageContent, screenshot });
+      const res = await chrome.runtime.sendMessage({
+        type: 'QUERY_OPENAI',
+        query: text,
+        pageContent,
+        screenshot,
+        pageImages,
+        images: attachedImages,
+        docLinks,
+      });
       if (res.error) { setErrorText(res.error); setState('error'); return; }
       setAnswerText(res.text);
       setConfidence(res.confidence);
@@ -217,7 +257,30 @@ export default function StellarApp() {
       setErrorText(err.message);
       setState('error');
     }
-  }, [query]);
+  }, [attachedImages, query]);
+
+  const handlePickImage = React.useCallback(async (e) => {
+    const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/')).slice(0, 3);
+    if (!files.length) return;
+    const toDataUrl = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed reading image'));
+      reader.readAsDataURL(file);
+    });
+    try {
+      const urls = await Promise.all(files.map(toDataUrl));
+      setAttachedImages(urls.filter(Boolean));
+    } catch {
+      setAttachedImages([]);
+    } finally {
+      e.target.value = '';
+    }
+  }, []);
+
+  const clearAttachedImage = React.useCallback((idx) => {
+    setAttachedImages(prev => prev.filter((_, i) => i !== idx));
+  }, []);
 
   const handleKey = (e) => { if (e.key === 'Enter') submit(); };
 
@@ -428,12 +491,33 @@ export default function StellarApp() {
           <IconStar s={12} c="white" />
         </div>
 
-        <input ref={inputRef} value={query}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {!!attachedImages.length && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, overflowX: 'auto' }}>
+              {attachedImages.map((img, idx) => (
+                <div key={idx} style={{ position: 'relative', width: 34, height: 34, borderRadius: 8, overflow: 'hidden', border: `1px solid ${OB}`, flexShrink: 0 }}>
+                  <img src={img} alt={`attachment-${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <button
+                    onClick={() => clearAttachedImage(idx)}
+                    title="Remove image"
+                    style={{
+                      position: 'absolute', top: 1, right: 1, width: 14, height: 14, borderRadius: 99, border: 'none',
+                      background: 'oklch(0 0 0 / 0.65)', color: 'white', fontSize: 10, lineHeight: 1, cursor: 'pointer', padding: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <input ref={inputRef} value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKey}
           placeholder={state === 'listening' ? 'Listening…' : state === 'thinking' ? 'Thinking…' : 'Ask anything about this page…'}
           disabled={state === 'listening' || state === 'thinking'}
-          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: 400, color: state === 'listening' || state === 'thinking' ? O : 'oklch(0.18 0.02 40)', letterSpacing: '-0.01em' }} />
+          style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: 400, color: state === 'listening' || state === 'thinking' ? O : 'oklch(0.18 0.02 40)', letterSpacing: '-0.01em' }} />
+        </div>
 
         {state === 'idle' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 99, background: 'oklch(0.65 0.18 40 / 0.08)', border: `1px solid ${OB}`, flexShrink: 0 }}>
@@ -444,6 +528,16 @@ export default function StellarApp() {
 
         <Btn onClick={openFlashcards} active={flashMode} title="Create flashcards">
           <IconCards s={14} c={flashMode ? 'white' : 'oklch(0.45 0.04 40)'} />
+        </Btn>
+
+        <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handlePickImage} />
+        <Btn
+          onClick={() => fileInputRef.current?.click()}
+          active={attachedImages.length > 0}
+          disabled={state === 'thinking'}
+          title="Attach images for analysis"
+        >
+          <IconImage s={14} c={attachedImages.length ? 'white' : 'oklch(0.45 0.04 40)'} />
         </Btn>
 
         <Btn onClick={handleMic} active={micActive} disabled={state === 'thinking'} title="Voice input">
