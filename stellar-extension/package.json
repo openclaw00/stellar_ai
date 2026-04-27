@@ -1,0 +1,21 @@
+{
+  "name": "stellar-ai-extension",
+  "version": "1.0.0",
+  "description": "Stellar AI Chrome extension",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:content && npm run build:popup && npm run build:static",
+    "build:content": "vite build --config vite.config.content.js",
+    "build:popup": "vite build --config vite.config.popup.js",
+    "build:static": "node scripts/copy-static.cjs",
+    "dev": "npm run build:content -- --watch"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.0"
+  }
+}

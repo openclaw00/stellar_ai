@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Stellar AI",
+  "version": "1.0.0",
+  "description": "AI assistant overlay that reads your page and answers questions instantly",
+  "permissions": ["storage", "tabs"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_title": "Stellar AI"
+  }
+}
