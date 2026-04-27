@@ -77,15 +77,29 @@ function useTypewriter(text, speed = 14, active = false) {
 }
 
 function getPageContent() {
-  return `Title: ${document.title}\nURL: ${location.href}\n\n${document.body.innerText.slice(0, 5000)}`;
+  const imgs = Array.from(document.querySelectorAll('img'))
+    .filter(img => img.src)
+    .slice(0, 15)
+    .map(img => `Image: ${img.alt || 'No alt text'} - URL: ${img.src}`)
+    .join('\n');
+  return `Title: ${document.title}\nURL: ${location.href}\nImages on page:\n${imgs}\n\nText content:\n${document.body.innerText.slice(0, 4000)}`;
 }
 
 function renderMd(text) {
-  return text.split(/(\*\*[^*]+\*\*)/).map((p, i) =>
-    p.startsWith('**') && p.endsWith('**')
-      ? <strong key={i} style={{ fontWeight: 600 }}>{p.slice(2, -2)}</strong>
-      : <span key={i}>{p}</span>
-  );
+  const parts = text.split(/(!\[[^\]]*\]\([^)]+\)|\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) => {
+    if (!p) return null;
+    if (p.startsWith('![') && p.includes('](')) {
+      const match = p.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+      if (match) {
+        return <img key={i} src={match[2]} alt={match[1]} style={{ maxWidth: '100%', borderRadius: 8, marginTop: 8, display: 'block' }} />;
+      }
+    }
+    if (p.startsWith('**') && p.endsWith('**')) {
+      return <strong key={i} style={{ fontWeight: 600 }}>{p.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{p}</span>;
+  });
 }
 
 const Btn = ({ onClick, disabled, active, title, children, style = {} }) => (

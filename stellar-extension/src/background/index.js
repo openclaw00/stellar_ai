@@ -33,6 +33,7 @@ async function handleQuery({ query, pageContent, screenshot }) {
     role: 'system',
     content:
       'You are Stellar AI, a concise browser-assistant. Answer in 1–4 sentences unless more detail is needed. ' +
+      'You can use markdown images ![alt](url) to show photos if relevant. ' +
       'End every response with exactly one line: [CONFIDENCE:X.XX] where X.XX is your confidence from 0 to 1.',
   };
 
